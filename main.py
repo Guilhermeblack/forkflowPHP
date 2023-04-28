@@ -33,22 +33,19 @@ def parse_args(argv):
     required.add_argument(
         "-d", "--dirpath",
         type=str,
-        required=False,
-        default="/media/dev4/Data/BemAgro/Codes/shape_exporter/bug2",
+        required=True,
         help="Dirpath."
     )
     required.add_argument(
         "-t", "--type",
         type=str,
-        required=False,
-        default="geojson",
+        required=True,
         help="File type to export. It can be 'geojson', 'shp' or 'kml'."
     )
     required.add_argument(
         "-f", "--filename",
         type=str,
-        required=False,
-        default="teste",
+        required=True,
         help="Filename."
     )
     ################################################################
@@ -109,6 +106,16 @@ def get_exporter(data_type:str):
 
     return creator[data_type]
 
+def _ensure_valid_coordinates(geom_list:list):
+    if len(geom_list)==1:
+        return geom_list
+    
+    corrected = []
+    for l in geom_list:
+        if len(l)>2:
+            corrected.append(l)
+    return corrected
+
 def main(dirpath:str, data_type:str, filename:str, output_dir:str, time):
     """
     Main function to export .geojson to .shp and .kml
@@ -130,17 +137,32 @@ def main(dirpath:str, data_type:str, filename:str, output_dir:str, time):
 
         # fix invalid data structure outside of {}
         with open(filepath) as f:
-            geom_data = f.readline()
+            geom_data = []
+            for i, line in enumerate(f):
+
+                line = line.strip('\n')
+                
+                if i==0:
+                    for count, char in enumerate(line):
+                        if char=='{':
+                            break
+
+                    if count>0: 
+                        line = line[count:-count]
             
-            for count, char in enumerate(geom_data):
-                if char=='{':
-                    break
+                geom_data.append(line)
 
-            if count>0: 
-                geom_data = geom_data[count:-count]
-
+        geom_data = ''.join(geom_data)
         # fix invalid data structure inside of geometry
         geom_data = json.loads(geom_data)
+
+        # skip empty geometries or collection
+        if 'Collection' in geom_data['type']:
+            geom_data = geom_data['features'][0]
+
+        if geom_data['geometry']==None:
+            continue
+
         coordinates = str(geom_data['geometry']['coordinates'])
         char_count = next(count for count, char in enumerate(coordinates) if char!='[')
 
@@ -149,6 +171,10 @@ def main(dirpath:str, data_type:str, filename:str, output_dir:str, time):
         while char_count>n_char:
             geom_data['geometry']['coordinates'] = geom_data['geometry']['coordinates'][0]
             char_count -= 1
+
+
+        # ensure valid coordinates
+        geom_data['geometry']['coordinates'] = _ensure_valid_coordinates(geom_data['geometry']['coordinates'])
 
         # read data and explode if geometry type is multipolygon
         df = gpd.read_file(json.dumps(geom_data))
@@ -159,13 +185,16 @@ def main(dirpath:str, data_type:str, filename:str, output_dir:str, time):
 
     polygons = polygons.reset_index(drop=True)
     
-    # ensure output dir exists 
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    if len(polygons)>0:
+        # ensure output dir exists 
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
 
-    # save
-    exporter = get_exporter(data_type)
-    exporter(polygons, output_dir, filename)
+        # save
+        exporter = get_exporter(data_type)
+        exporter(polygons, output_dir, filename)
+    else: 
+        print("Empty dataframe!")
 
     if time:
         print(f"Execution time: {t() - start} seconds.")
