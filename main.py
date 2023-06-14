@@ -16,6 +16,13 @@ import fiona
 import shutil 
 import json 
 import numpy as np 
+import logging
+
+logging.getLogger(__name__).propagate = False
+logging.basicConfig(filename='exporter.log', filemode='w', format='%(asctime)s %(module)s - %(levelname)s: %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.DEBUG)
+for log_name, log_obj in logging.Logger.manager.loggerDict.items():
+    if log_name != __name__:
+        log_obj.disabled = True
 
 def parse_args(argv):
     """
@@ -124,6 +131,7 @@ def main(dirpath:str, data_type:str, filename:str, output_dir:str, time):
     start = t()
 
     # iterate over all files 
+    logging.debug("Processing files to export...")
     files = [fl for fl in os.listdir(dirpath) if fl.endswith('geojson')]
     polygons = gpd.GeoDataFrame(columns=['geometry'], crs=4326)
 
@@ -183,6 +191,7 @@ def main(dirpath:str, data_type:str, filename:str, output_dir:str, time):
 
         polygons = polygons.append(df)
 
+    logging.debug("Finished files processing")
     polygons = polygons.reset_index(drop=True)
     
     if len(polygons)>0:
@@ -191,11 +200,13 @@ def main(dirpath:str, data_type:str, filename:str, output_dir:str, time):
             os.makedirs(output_dir)
 
         # save
+        logging.debug(f"Saving files to {filename}.{data_type}")
         exporter = get_exporter(data_type)
         exporter(polygons, output_dir, filename)
     else: 
-        print("Empty dataframe!")
+        logging.debug("Nothing to save. Empty dataframe!")
 
+    logging.debug("Finished execution")
     if time:
         print(f"Execution time: {t() - start} seconds.")
 
