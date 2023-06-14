@@ -15,7 +15,6 @@ from utils.zip_saver import ShapefileToZipSaver
 import fiona 
 import shutil 
 import json 
-import numpy as np 
 import logging
 
 logging.getLogger(__name__).propagate = False
@@ -123,6 +122,24 @@ def _ensure_valid_coordinates(geom_list:list):
             corrected.append(l)
     return corrected
 
+def _fix_geometries(df:gpd.GeoDataFrame)->gpd.GeoDataFrame:
+
+    """
+    Remove duplicated vertex and self-intersections
+
+    Returns:
+        gpd.GeoDataFrame: Fixed GeoDataFrame
+    """
+    
+    tolerance = 1e-5
+    if df.crs.is_geographic:
+        tolerance *= 0.000009
+    
+    df.geometry = df.simplify(tolerance)
+    df.geometry = df.buffer(0)
+    
+    return df
+
 def main(dirpath:str, data_type:str, filename:str, output_dir:str, time):
     """
     Main function to export .geojson to .shp and .kml
@@ -191,13 +208,17 @@ def main(dirpath:str, data_type:str, filename:str, output_dir:str, time):
 
         polygons = polygons.append(df)
 
-    logging.debug("Finished files processing")
+    logging.debug("Finished files processing.")
     polygons = polygons.reset_index(drop=True)
     
     if len(polygons)>0:
         # ensure output dir exists 
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
+
+        # fix geometries
+        logging.debug("Fixing geometries...")
+        polygons = _fix_geometries(polygons)
 
         # save
         logging.debug(f"Saving files to {filename}.{data_type}")
