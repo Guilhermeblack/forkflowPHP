@@ -105,14 +105,9 @@ def get_correct_crs(filepath)->str:
 
 
 def _remove_tmp(tmp_dir:str):
-    while True:
-        if not os.path.basename(tmp_dir) =='.tmp':
-            tmp_dir = os.path.dirname(tmp_dir)
-        else:
-            break
 
-
-    shutil.rmtree(tmp_dir)
+    if os.path.exists(tmp_dir):
+        shutil.rmtree(tmp_dir)
 
 def convert_to_geojson(shape_path:str, output_dir:str)->str:
     """
@@ -131,27 +126,28 @@ def convert_to_geojson(shape_path:str, output_dir:str)->str:
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
+    # create tmp dir and ensure folder exists
+    tmp_dir = os.path.join(output_dir, '.tmp')
+
     # extraxt file in cases of zipfile        
-    tmp_dir = ""
-    if 'zip' in ext:
+    if '.zip' in ext:
 
-        # create tmp dir and extract zip
-        tmp_dir = os.path.join(output_dir, '.tmp')
+        # extract zip
         if not os.path.exists(tmp_dir): os.makedirs(tmp_dir)
-
-        extract(shape_path, tmp_dir)
+        aux_dir = tmp_dir
+        extract(shape_path, aux_dir)
 
         while True:
             # iterate until find folder that contains shapefile 
-            if os.path.isdir(os.path.join(tmp_dir, os.listdir(tmp_dir)[0])):
-                tmp_dir = os.path.join(tmp_dir, os.listdir(tmp_dir)[0])
+            if os.path.isdir(os.path.join(aux_dir, os.listdir(aux_dir)[0])):
+                aux_dir = os.path.join(aux_dir, os.listdir(aux_dir)[0])
             else:
                 break
 
         # update shape path and file extension
-        shape_path = [os.path.join(tmp_dir, f) for f in os.listdir(tmp_dir) if f.split('.')[-1] in ['geojson','shp', 'kml']]
+        shape_path = [os.path.join(aux_dir, f) for f in os.listdir(aux_dir) if f.split('.')[-1] in ['geojson','shp', 'kml']]
         if len(shape_path)>1 or len(shape_path)==0:
-            _remove_tmp(tmp_dir=tmp_dir)
+            _remove_tmp(tmp_dir)
             return 2
         else:
             shape_path, = shape_path
@@ -161,9 +157,8 @@ def convert_to_geojson(shape_path:str, output_dir:str)->str:
     df = file_reader(ext, shape_path)
     df.to_file(os.path.join(output_dir, f"{filename}.geojson"), driver='GeoJSON')
 
-    if tmp_dir:
-        # remove tmp dir
-        _remove_tmp(tmp_dir=tmp_dir)
+    # remove tmp dir
+    _remove_tmp(tmp_dir)
 
     return 1
 
