@@ -14,7 +14,13 @@ from zipfile import ZipFile
 import geopandas as gpd 
 from osgeo import ogr 
 import fiona 
+import logging
 
+logging.getLogger(__name__).propagate = False
+logging.basicConfig(filename='terrace_converter.log', filemode='w', format='%(asctime)s %(module)s - %(levelname)s: %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.DEBUG)
+for log_name, log_obj in logging.Logger.manager.loggerDict.items():
+    if log_name != __name__:
+        log_obj.disabled = True
 
 def parse_args(argv):
     """
@@ -62,7 +68,9 @@ def kml_reader(filepath):
 
     fiona.drvsupport.supported_drivers['KML'] = 'rw'
     df = gpd.read_file(filepath, driver='kml')
-    df.crs = get_correct_crs(filepath)
+    crs = get_correct_crs(filepath)
+    if not crs is None: #if None, crs is in SIRGAS
+        df.crs = int(crs)
     df.to_crs(4326, inplace=True)
 
     return df 
@@ -72,7 +80,12 @@ def shape_reader(shape_path):
     # read shapefile and convert to wgs 4326
 
     df = gpd.read_file(shape_path)
-    df.crs = get_correct_crs(shape_path)
+    logging.debug("Getting correct CRS")
+    crs = get_correct_crs(shape_path)
+    if not crs is None: #if None, crs is in SIRGAS
+        logging.debug(f"Setting GeoDataFrame to CRS {crs}")
+        df.crs = int(crs)
+    logging.debug(f"Converting to 4326")
     df.to_crs(4326, inplace=True)
 
     return df 
@@ -99,7 +112,7 @@ def get_correct_crs(filepath)->str:
         str: CRS of shapefile
     """
     src_file = ogr.Open(filepath)
-    crs = int(src_file.GetLayer().GetSpatialRef().GetAttrValue("AUTHORITY",1))
+    crs = src_file.GetLayer().GetSpatialRef().GetAttrValue("AUTHORITY",1)
 
     return crs
 
@@ -131,7 +144,7 @@ def convert_to_geojson(shape_path:str, output_dir:str)->str:
 
     # extraxt file in cases of zipfile        
     if '.zip' in ext:
-
+        logging.debug("Extracting .zip file")
         # extract zip
         if not os.path.exists(tmp_dir): os.makedirs(tmp_dir)
         aux_dir = tmp_dir
@@ -147,17 +160,22 @@ def convert_to_geojson(shape_path:str, output_dir:str)->str:
         # update shape path and file extension
         shape_path = [os.path.join(aux_dir, f) for f in os.listdir(aux_dir) if f.split('.')[-1] in ['geojson','shp', 'kml']]
         if len(shape_path)>1 or len(shape_path)==0:
+            logging.debug(f"Invalid input file with {len(shape_path)} files.")
             _remove_tmp(tmp_dir)
             return 2
         else:
             shape_path, = shape_path
 
-        filename, ext = os.path.splitext(os.path.basename(shape_path))
+        logging.debug(f"Input filepath {shape_path}")
+        _, ext = os.path.splitext(os.path.basename(shape_path))
 
+    logging.debug(f"Reading {ext} file")
     df = file_reader(ext, shape_path)
-    df.to_file(os.path.join(output_dir, f"{filename}.geojson"), driver='GeoJSON')
+    logging.debug(f"Saving TERRACO_CLIENT.geojson in {output_dir}")
+    df.to_file(os.path.join(output_dir, "TERRACO_CLIENT.geojson"), driver='GeoJSON')
 
     # remove tmp dir
+    logging.debug(f"Removing tmp dir")
     _remove_tmp(tmp_dir)
 
     return 1
@@ -173,6 +191,8 @@ if __name__ == '__main__':
     try:
         return_code = convert_to_geojson(input_path, output_dir)
         print(return_code)
+        logging.debug(f"Finished!")
     except:
         # Failed execution
+        logging.debug(f"Failed execution!")
         print(0)
