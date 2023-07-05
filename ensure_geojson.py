@@ -11,13 +11,10 @@ import argparse
 import os, shutil, sys
 from zipfile import ZipFile
 
+import logging
 import geopandas as gpd 
 
 from scripts.data_reader import file_reader
-
-from osgeo import ogr 
-import fiona 
-import logging
 
 logging.getLogger(__name__).propagate = False
 logging.basicConfig(filename='terrace_converter.log', filemode='w', format='%(asctime)s %(module)s - %(levelname)s: %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.DEBUG)
@@ -39,22 +36,31 @@ def parse_args(argv):
     #region Mandatory arguments
     ################################################################
     required = parser.add_argument_group('Required arguments')
-
+    required.add_argument(
+        "-fv", "--field_vector",
+        type=str,
+        required=True,
+        help="Path to input field vectors."
+    )
     required.add_argument(
         "-i", "--input_path",
         type=str,
         required=True,
-        help="Path to input file."
-    )
-    required.add_argument(
-        "-o", "--output_dir",
-        type=str,
-        required=True,
-        help="Path to output directory"
+        help="Path to input terrace file."
     )
     ################################################################
     #endregion Mandatory arguments
 
+    #region Optional arguments
+    optional = parser.add_argument_group('Optional arguments')
+    optional.add_argument(
+        "-o", "--output_dir",
+        type=str,
+        required=False,
+        default="",
+        help="Path to output directory"
+    )
+    #endregion Optional arguments
 
     args = parser.parse_args(args=argv)
     return args
@@ -68,23 +74,6 @@ def extract(zip_filepath:str, outdir:str)->str:
         # into outdir.
         zObject.extractall(
             path=outdir)
-
-       
-def get_correct_crs(filepath)->str:
-    
-    """ Get correct CRS from shapefile 
-
-    Args:
-        shape_df (str): shapefile filepath 
-
-    Returns:
-        str: CRS of shapefile
-    """
-    src_file = ogr.Open(filepath)
-    crs = src_file.GetLayer().GetSpatialRef().GetAttrValue("AUTHORITY",1)
-
-    return crs
-
 
 def _remove_tmp(tmp_dir:str):
 
