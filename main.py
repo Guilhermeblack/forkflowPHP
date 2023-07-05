@@ -11,7 +11,7 @@ import argparse
 import sys
 import os
 import geopandas as gpd 
-from utils.zip_saver import ShapefileToZipSaver
+from scripts.zip_saver import ShapefileToZipSaver
 import fiona 
 import shutil 
 import json 
