@@ -12,6 +12,9 @@ import os, shutil, sys
 from zipfile import ZipFile
 
 import geopandas as gpd 
+
+from scripts.data_reader import file_reader
+
 from osgeo import ogr 
 import fiona 
 import logging
@@ -21,6 +24,8 @@ logging.basicConfig(filename='terrace_converter.log', filemode='w', format='%(as
 for log_name, log_obj in logging.Logger.manager.loggerDict.items():
     if log_name != __name__:
         log_obj.disabled = True
+
+this_dir = os.path.dirname(__file__)
 
 def parse_args(argv):
     """
@@ -34,7 +39,7 @@ def parse_args(argv):
     #region Mandatory arguments
     ################################################################
     required = parser.add_argument_group('Required arguments')
-    
+
     required.add_argument(
         "-i", "--input_path",
         type=str,
@@ -49,46 +54,10 @@ def parse_args(argv):
     )
     ################################################################
     #endregion Mandatory arguments
-    
+
 
     args = parser.parse_args(args=argv)
     return args
-
-def file_reader(format, filepath):
-    formats_getter = {'.kml':kml_reader,
-                      '.geojson':shape_reader,
-                      '.shp':shape_reader}
-    
-    return formats_getter[format](filepath)
-
-
-def kml_reader(filepath):
-
-    # read kml format and convert to wgs 4326
-
-    fiona.drvsupport.supported_drivers['KML'] = 'rw'
-    df = gpd.read_file(filepath, driver='kml')
-    crs = get_correct_crs(filepath)
-    if not crs is None: #if None, crs is in SIRGAS
-        df.crs = int(crs)
-    df.to_crs(4326, inplace=True)
-
-    return df 
-
-def shape_reader(shape_path):
-
-    # read shapefile and convert to wgs 4326
-
-    df = gpd.read_file(shape_path)
-    logging.debug("Getting correct CRS")
-    crs = get_correct_crs(shape_path)
-    if not crs is None: #if None, crs is in SIRGAS
-        logging.debug(f"Setting GeoDataFrame to CRS {crs}")
-        df.crs = int(crs)
-    logging.debug(f"Converting to 4326")
-    df.to_crs(4326, inplace=True)
-
-    return df 
 
 
 def extract(zip_filepath:str, outdir:str)->str:
@@ -99,7 +68,7 @@ def extract(zip_filepath:str, outdir:str)->str:
         # into outdir.
         zObject.extractall(
             path=outdir)
-       
+
        
 def get_correct_crs(filepath)->str:
     
@@ -185,7 +154,7 @@ if __name__ == '__main__':
     # Parse args
     args = parse_args(sys.argv[1:])
     input_path = args.input_path
-    output_dir = args.output_dir
+    output_dir = args.output_dir if args.output_dir else os.path.join(this_dir, 'output')
 
     print("************************* Starting script. *************************")
     try:
