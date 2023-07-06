@@ -15,6 +15,8 @@ import logging
 import geopandas as gpd 
 
 from scripts.data_reader import file_reader
+from scripts.utils import get_utm 
+from shapely.ops import linemerge
 
 logging.getLogger(__name__).propagate = False
 logging.basicConfig(filename='terrace_converter.log', filemode='w', format='%(asctime)s %(module)s - %(levelname)s: %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.DEBUG)
@@ -80,7 +82,34 @@ def _remove_tmp(tmp_dir:str):
     if os.path.exists(tmp_dir):
         shutil.rmtree(tmp_dir)
 
-def convert_to_geojson(shape_path:str, output_dir:str)->str:
+def check_inconsistency(terrace_df, field_df):
+
+    terrace_df = gpd.clip(terrace_df, field_df, keep_geom_type=True)
+    terrace_df = terrace_df.explode(ignore_index=True)
+    terrace_df = terrace_df.drop_duplicates('geometry')
+
+    terrace_df = gpd.GeoDataFrame(
+                    geometry=list(linemerge(list(terrace_df.geometry)).geoms), 
+                    crs=terrace_df.crs)
+
+    inconsistent_points = gpd.GeoSeries()
+    for roi in field_df.geometry:
+        roi_boundary = roi.boundary
+        terraces = terrace_df.loc[terrace_df.intersects(roi)]
+        if len(terraces)==0:
+            continue
+        external_points = terraces.boundary
+        external_points = external_points.explode(index_parts=False).reset_index(drop=True)
+        external_points = external_points.loc[external_points.distance(roi_boundary)>20]
+        inconsistent_points = inconsistent_points.append(external_points)
+
+    inconsistent_points = gpd.GeoDataFrame(
+                            geometry=inconsistent_points, 
+                            crs=terrace_df.crs)
+    
+    return inconsistent_points
+
+def convert_to_geojson(vector_path:str, shape_path:str, output_dir:str)->str:
     """
     Function to convert input file to .geojson and with 4326 CRS
     If the input is .zip file, it will be extracted and saved as .geojson file at specified output_path.
@@ -127,8 +156,24 @@ def convert_to_geojson(shape_path:str, output_dir:str)->str:
         logging.debug(f"Input filepath {shape_path}")
         _, ext = os.path.splitext(os.path.basename(shape_path))
 
+    logging.debug(f"Reading field vector")
+    vector_df = gpd.read_file(vector_path)
+    utm_crs = get_utm(vector_df)
+    vector_df.to_crs(utm_crs, inplace=True)
+
     logging.debug(f"Reading {ext} file")
-    df = file_reader(ext, shape_path)
+    df = file_reader(ext, shape_path, utm_crs)
+    if not df.is_valid.all() or len(gpd.overlay(df, vector_df))==0:
+        logging.debug(f"Invalid input file.")
+        return 2 
+    
+    logging.debug(f"Searching inconstency in terrace rows...")
+    inconsistent_points = check_inconsistency(df, vector_df)
+    if len(inconsistent_points)>0:
+        logging.debug(f"Uploaded terrace file has {len(inconsistent_points)} inconsistent points!")
+        inconsistent_points.to_file(os.path.join(output_dir, "inconsistent_points.geojson"), driver='GeoJSON')
+        return 3
+
     logging.debug(f"Saving TERRACO_CLIENT.geojson in {output_dir}")
     df.to_file(os.path.join(output_dir, "TERRACO_CLIENT.geojson"), driver='GeoJSON')
 
@@ -143,11 +188,12 @@ if __name__ == '__main__':
     # Parse args
     args = parse_args(sys.argv[1:])
     input_path = args.input_path
+    vector_path = args.field_vector
     output_dir = args.output_dir if args.output_dir else os.path.join(this_dir, 'output')
 
     print("************************* Starting script. *************************")
     try:
-        return_code = convert_to_geojson(input_path, output_dir)
+        return_code = convert_to_geojson(vector_path, input_path, output_dir)
         print(return_code)
         logging.debug(f"Finished!")
     except:
