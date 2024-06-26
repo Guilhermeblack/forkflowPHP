@@ -85,6 +85,8 @@ def _remove_tmp(tmp_dir:str):
 def check_inconsistency(terrace_df, field_df):
     # fix invalid geometry
     field_df.geometry = field_df.buffer(0)
+    # apply negative buffer to deal with intersects polygons
+    field_df.geometry = field_df.buffer(-1)
 
     terrace_df = gpd.clip(terrace_df, field_df, keep_geom_type=True)
     terrace_df = terrace_df.explode(ignore_index=True)
