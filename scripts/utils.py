@@ -7,6 +7,7 @@ def get_utm(shape_df, src_crs:str='4326'):
 
     zoneFinder = UTMZoneFinder([point_sample[1], point_sample[0]], src_proj=src_crs)
     utm_epsg = zoneFinder.find_zone()[1]
+    utm_epsg = int(utm_epsg.split(':')[-1])
 
     return utm_epsg
 

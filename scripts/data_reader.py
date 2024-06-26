@@ -50,5 +50,6 @@ def shape_reader(shape_path, utm_crs):
     if utm_crs:
         logging.debug(f"Converting to {utm_crs}")
         df.to_crs(utm_crs, inplace=True)
+        logging.debug(f"Converted to {utm_crs}")
 
     return df 

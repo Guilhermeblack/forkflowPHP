@@ -83,13 +83,15 @@ def _remove_tmp(tmp_dir:str):
         shutil.rmtree(tmp_dir)
 
 def check_inconsistency(terrace_df, field_df):
+    # fix invalid geometry
+    field_df.geometry = field_df.buffer(0)
 
     terrace_df = gpd.clip(terrace_df, field_df, keep_geom_type=True)
     terrace_df = terrace_df.explode(ignore_index=True)
     terrace_df = terrace_df.drop_duplicates('geometry')
 
     terrace_df = gpd.GeoDataFrame(
-                    geometry=list(linemerge(list(terrace_df.geometry)).geoms), 
+                    geometry=list(linemerge(list(terrace_df.geometry)).geoms),
                     crs=terrace_df.crs)
 
     inconsistent_points = gpd.GeoSeries()
@@ -156,9 +158,11 @@ def convert_to_geojson(vector_path:str, shape_path:str, output_dir:str)->str:
         logging.debug(f"Input filepath {shape_path}")
         _, ext = os.path.splitext(os.path.basename(shape_path))
 
-    logging.debug(f"Reading field vector")
+    logging.debug(f"Reading field vector {vector_path}")
     vector_df = gpd.read_file(vector_path)
+    logging.debug(f"Getting field vector utm")
     utm_crs = get_utm(vector_df)
+    logging.debug(f"Converting to utm_crs")
     vector_df.to_crs(utm_crs, inplace=True)
 
     logging.debug(f"Reading {ext} file")
@@ -169,13 +173,16 @@ def convert_to_geojson(vector_path:str, shape_path:str, output_dir:str)->str:
     
     logging.debug(f"Searching inconstency in terrace rows...")
     inconsistent_points = check_inconsistency(df, vector_df)
+
+    logging.debug(f"Saving TERRACO_CLIENT.geojson in {output_dir}")
+    df.to_crs(4326, inplace=True)
+    df.to_file(os.path.join(output_dir, "TERRACO_CLIENT.geojson"), driver='GeoJSON')
+
     if len(inconsistent_points)>0:
         logging.debug(f"Uploaded terrace file has {len(inconsistent_points)} inconsistent points!")
         inconsistent_points.to_file(os.path.join(output_dir, "inconsistent_points.geojson"), driver='GeoJSON')
         return 3
 
-    logging.debug(f"Saving TERRACO_CLIENT.geojson in {output_dir}")
-    df.to_file(os.path.join(output_dir, "TERRACO_CLIENT.geojson"), driver='GeoJSON')
 
     # remove tmp dir
     logging.debug(f"Removing tmp dir")
@@ -185,13 +192,13 @@ def convert_to_geojson(vector_path:str, shape_path:str, output_dir:str)->str:
 
 
 if __name__ == '__main__':
+    logging.debug("Starting script")
     # Parse args
     args = parse_args(sys.argv[1:])
     input_path = args.input_path
     vector_path = args.field_vector
     output_dir = args.output_dir if args.output_dir else os.path.join(this_dir, 'output')
 
-    print("************************* Starting script. *************************")
     try:
         return_code = convert_to_geojson(vector_path, input_path, output_dir)
         print(return_code)
