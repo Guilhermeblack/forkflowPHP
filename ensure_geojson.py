@@ -17,6 +17,7 @@ import geopandas as gpd
 from scripts.data_reader import file_reader
 from scripts.utils import get_utm 
 from shapely.ops import linemerge
+from shapely.geometry import LineString
 
 logging.getLogger(__name__).propagate = False
 logging.basicConfig(filename='terrace_converter.log', filemode='w', format='%(asctime)s %(module)s - %(levelname)s: %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.DEBUG)
@@ -92,8 +93,14 @@ def check_inconsistency(terrace_df, field_df):
     terrace_df = terrace_df.explode(ignore_index=True)
     terrace_df = terrace_df.drop_duplicates('geometry')
 
+    terraces = linemerge(list(terrace_df.geometry))
+    if isinstance(terraces, LineString):
+        terraces = [terraces]
+    else:
+        terraces = list(terraces.geoms)
+
     terrace_df = gpd.GeoDataFrame(
-                    geometry=list(linemerge(list(terrace_df.geometry)).geoms),
+                    geometry=terraces,
                     crs=terrace_df.crs)
 
     inconsistent_points = gpd.GeoSeries()
