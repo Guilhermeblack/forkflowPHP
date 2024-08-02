@@ -12,6 +12,7 @@ import sys
 import os
 import geopandas as gpd 
 from scripts.zip_saver import ShapefileToZipSaver
+from scripts.utils import convert_3D_2D
 import fiona 
 import shutil 
 import json 
@@ -137,6 +138,8 @@ def _fix_geometries(df:gpd.GeoDataFrame)->gpd.GeoDataFrame:
     
     df.geometry = df.simplify(tolerance)
     df.geometry = df.buffer(0)
+    
+    df.geometry = convert_3D_2D(df.geometry)
     
     return df
 
