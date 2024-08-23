@@ -190,6 +190,8 @@ def _fix_geometries(df:gpd.GeoDataFrame)->gpd.GeoDataFrame:
 def _get_brackets_number(geom_type:str):
 
     # get the correct amount of brackets for different types of geometries
+    # https://datatracker.ietf.org/doc/html/rfc7946
+    
     brackets_map = {'MultiPoint': 2,
                   'MultiLineString': 3,
                   'MultiPolygon': 4,
