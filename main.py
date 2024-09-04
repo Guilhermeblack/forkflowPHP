@@ -11,10 +11,9 @@ import argparse
 import sys
 import os
 import geopandas as gpd 
-from scripts.zip_saver import ShapefileToZipSaver
+import pandas as pd
+from scripts.file_exporter import get_exporter
 from scripts.utils import convert_3D_2D
-import fiona 
-import shutil 
 import json 
 import logging
 
@@ -79,39 +78,6 @@ def parse_args(argv):
 
     args = parser.parse_args(args=argv)
     return args
-
-def _to_geojson(df:gpd.GeoDataFrame, output_dir:str, filename:str):
-
-    # save geojson
-    df.to_file(os.path.join(output_dir, f"{filename}.geojson"), driver='GeoJSON')
-    return None 
-
-def _to_shp(df:gpd.GeoDataFrame, output_dir:str, filename:str):
-    # save .shp
-    tmp_dir = os.path.join(output_dir, '.tmp')
-    if os.path.exists(tmp_dir): shutil.rmtree(tmp_dir)
-    os.makedirs(tmp_dir)
-
-    df.to_file(os.path.join(tmp_dir, f"{filename}.shp"))
-
-    zip_filepath = os.path.join(output_dir, f"{filename}.zip")
-    zip = ShapefileToZipSaver(zip_filepath, tmp_dir)
-    zip.save()
-
-def _to_kml(df:gpd.GeoDataFrame, output_dir:str, filename:str):
-    # save kml 
-    fiona.supported_drivers['KML'] = 'rw'
-    df.to_file(os.path.join(output_dir, f"{filename}.kml"), driver='KML')
-    return None 
-
-def get_exporter(data_type:str):
-    
-    creator = {'kml': _to_kml,
-               'shp': _to_shp,
-               'geojson': _to_geojson}
-            
-
-    return creator[data_type]
 
 def _ensure_valid_coordinates(geom_list:list):
     if len(geom_list)==1:
@@ -209,7 +175,7 @@ def main(dirpath:str, data_type:str, filename:str, output_dir:str, time):
         if n_char==4:
             df = df.explode(ignore_index=True)
 
-        polygons = polygons.append(df)
+        polygons = pd.concat(polygons, df)
 
     logging.debug("Finished files processing.")
     polygons = polygons.reset_index(drop=True)
