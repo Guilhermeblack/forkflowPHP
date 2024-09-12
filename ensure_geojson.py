@@ -13,6 +13,7 @@ from zipfile import ZipFile
 
 import logging
 import geopandas as gpd 
+import pandas as pd
 
 from scripts.data_reader import file_reader
 from scripts.utils import get_utm 
@@ -112,7 +113,7 @@ def check_inconsistency(terrace_df, field_df):
         external_points = terraces.boundary
         external_points = external_points.explode(index_parts=False).reset_index(drop=True)
         external_points = external_points.loc[external_points.distance(roi_boundary)>20]
-        inconsistent_points = inconsistent_points.append(external_points)
+        inconsistent_points = pd.concat([inconsistent_points, external_points])
 
     inconsistent_points = gpd.GeoDataFrame(
                             geometry=inconsistent_points, 
