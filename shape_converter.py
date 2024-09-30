@@ -42,7 +42,7 @@ def parse_args(argv):
         "-d", "--dirpath",
         type=str,
         required=True,
-        help="Dirpath."
+        help="Input dirpath."
     )
     required.add_argument(
         "-t", "--type",
@@ -54,7 +54,7 @@ def parse_args(argv):
         "-f", "--filename",
         type=str,
         required=True,
-        help="Filename."
+        help="Output filename."
     )
     ################################################################
     #endregion Mandatory arguments
@@ -75,6 +75,13 @@ def parse_args(argv):
         required=False,
         default="Polygon",
         help="Type of geometry to be saved in output file. It can be any of those: ['Polygon', 'LineString', 'Point']. (Default: 'Polygon')"
+    )
+    optional.add_argument(
+        "-st", "--simplify_tolerance",
+        type=str,
+        required=False,
+        default=1e-5,
+        help="Tolerance in meters for Douglas-Peucker geometry simplification. (Default: 1e-5)"
     )
     optional.add_argument(
         "-o", "--output_dir",
@@ -132,7 +139,7 @@ def _ensure_geom_type_format(geom_type:str)->str:
     
     return formats.get(geom_type)
 
-def _fix_geometries(df:gpd.GeoDataFrame)->gpd.GeoDataFrame:
+def _fix_geometries(df:gpd.GeoDataFrame, simplify_tolerance:float)->gpd.GeoDataFrame:
 
     """
     Remove duplicated vertex and self-intersections
@@ -141,11 +148,10 @@ def _fix_geometries(df:gpd.GeoDataFrame)->gpd.GeoDataFrame:
         gpd.GeoDataFrame: Fixed GeoDataFrame
     """
     
-    tolerance = 1e-5
     if df.crs.is_geographic:
-        tolerance *= 0.000009
+        simplify_tolerance *= 0.000009
     
-    df.geometry = df.simplify(tolerance)
+    df.geometry = df.simplify(simplify_tolerance)
     df.geometry = df.buffer(0)
     
     df.geometry = convert_3D_2D(df.geometry)
@@ -253,7 +259,7 @@ def _load_shp_or_kml(filepath:str)->gpd.GeoDataFrame:
     df = df.explode(ignore_index=True)
     return df
     
-def main(dirpath:str, input_type:str, geom_type:str, data_type:str, filename:str, output_dir:str, time):
+def main(dirpath:str, input_type:str, geom_type:str, simplify_tolerance:float, data_type:str, filename:str, output_dir:str, time):
     """
     Main function to export .geojson to .shp and .kml
     """
@@ -296,7 +302,7 @@ def main(dirpath:str, input_type:str, geom_type:str, data_type:str, filename:str
 
         # fix geometries
         logging.debug("Fixing geometries...")
-        geometries_df = _fix_geometries(geometries_df)
+        geometries_df = _fix_geometries(geometries_df, simplify_tolerance)
 
         # save
         logging.debug(f"Saving files to {filename}.{data_type}")
@@ -317,6 +323,7 @@ if __name__ == '__main__':
     data_type = args.type
     input_type = args.input_type
     geom_type = (args.geometry_type).lower()
+    simplify_tolerance = float(args.simplify_tolerance)
 
     assert data_type in ['geojson', 'kml', 'shp'], f"Invalid data_type. It is possible to export the data only to `shp`, `geojson` or `kml`."
     assert input_type in ['geojson', 'kml', 'shp', 'all'], f"Invalid input_type. It is possible to load the data only from `shp`, `geojson`, `kml` or `all` (shp, geojson and kml)."
@@ -330,4 +337,4 @@ if __name__ == '__main__':
     time = args.time
 
     print("************************* Starting script. *************************")
-    main(dirpath, input_type, geom_type, data_type, filename, output_dir, time)
+    main(dirpath, input_type, geom_type, simplify_tolerance, data_type, filename, output_dir, time)
