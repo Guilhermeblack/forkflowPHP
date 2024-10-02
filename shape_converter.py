@@ -275,9 +275,10 @@ def main(dirpath:str, input_type:str, geom_type:str, simplify_tolerance:float, d
     files = [fl for fl in os.listdir(dirpath) if fl.endswith(input_type)]
     geometries_df = gpd.GeoDataFrame(columns=['geometry'], crs=4326)
 
-    # sort files by ascending order
-    # TODO: Esta lógica está condicionada para talhões com nomes numéricos, e precisa pensar em um formato mais genérico.
-    files_ids = [int(f.split('.')[0]) for f in files]
+    # check if all file ids are numeric and sort files by ascending order
+    files_ids = [f.split('.')[0] for f in files]
+    if all(f.isnumeric() for f in files_ids):
+        files_ids = [int(f) for f in files_ids]
     files = [fl for _, fl in sorted(zip(files_ids, files))]
 
     for fl in files:
