@@ -109,6 +109,55 @@ def _fix_geometries(df:gpd.GeoDataFrame)->gpd.GeoDataFrame:
     
     return df
 
+def read_as_dict(filepath:str):
+    # fix invalid data structure outside of {}
+    with open(filepath) as f:
+        geom_data = []
+        for i, line in enumerate(f):
+
+            line = line.strip('\n')
+            
+            if i==0:
+                for count, char in enumerate(line):
+                    if char=='{':
+                        break
+
+                if count>0: 
+                    line = line[count:-count]
+        
+            geom_data.append(line)
+
+    geom_data = ''.join(geom_data)
+    # fix invalid data structure inside of geometry
+    geom_data = json.loads(geom_data)
+
+    # skip empty geometries or collection
+    if 'Collection' in geom_data['type']:
+        geom_data = geom_data['features'][0]
+
+    if geom_data['geometry']==None:
+        return gpd.GeoDataFrame(columns=['geometry'])
+
+    coordinates = str(geom_data['geometry']['coordinates'])
+    char_count = next(count for count, char in enumerate(coordinates) if char!='[')
+
+    # get the correct amount of brackets for different types of polygons
+    n_char = 4 if geom_data['geometry']['type'] == 'MultiPolygon' else 3
+    while char_count>n_char:
+        geom_data['geometry']['coordinates'] = geom_data['geometry']['coordinates'][0]
+        char_count -= 1
+
+
+    # ensure valid coordinates
+    geom_data['geometry']['coordinates'] = _ensure_valid_coordinates(geom_data['geometry']['coordinates'])
+
+    # read data and explode if geometry type is multipolygon
+    df = gpd.read_file(json.dumps(geom_data))
+    if n_char==4:
+        df = df.explode(ignore_index=True)
+    
+    return df 
+
 def main(dirpath:str, data_type:str, filename:str, output_dir:str, time):
     """
     Main function to export .geojson to .shp and .kml
@@ -129,53 +178,12 @@ def main(dirpath:str, data_type:str, filename:str, output_dir:str, time):
         
         filepath = os.path.join(dirpath, fl)
 
-        # fix invalid data structure outside of {}
-        with open(filepath) as f:
-            geom_data = []
-            for i, line in enumerate(f):
-
-                line = line.strip('\n')
-                
-                if i==0:
-                    for count, char in enumerate(line):
-                        if char=='{':
-                            break
-
-                    if count>0: 
-                        line = line[count:-count]
-            
-                geom_data.append(line)
-
-        geom_data = ''.join(geom_data)
-        # fix invalid data structure inside of geometry
-        geom_data = json.loads(geom_data)
-
-        # skip empty geometries or collection
-        if 'Collection' in geom_data['type']:
-            geom_data = geom_data['features'][0]
-
-        if geom_data['geometry']==None:
-            continue
-
-        coordinates = str(geom_data['geometry']['coordinates'])
-        char_count = next(count for count, char in enumerate(coordinates) if char!='[')
-
-        # get the correct amount of brackets for different types of polygons
-        n_char = 4 if geom_data['geometry']['type'] == 'MultiPolygon' else 3
-        while char_count>n_char:
-            geom_data['geometry']['coordinates'] = geom_data['geometry']['coordinates'][0]
-            char_count -= 1
-
-
-        # ensure valid coordinates
-        geom_data['geometry']['coordinates'] = _ensure_valid_coordinates(geom_data['geometry']['coordinates'])
-
-        # read data and explode if geometry type is multipolygon
-        df = gpd.read_file(json.dumps(geom_data))
-        if n_char==4:
+        try:
+            df = gpd.read_file(filepath)
             df = df.explode(ignore_index=True)
-
-        polygons = pd.concat(polygons, df)
+        except:
+            df = read_as_dict(filepath)
+        polygons = pd.concat([polygons, df])
 
     logging.debug("Finished files processing.")
     polygons = polygons.reset_index(drop=True)
