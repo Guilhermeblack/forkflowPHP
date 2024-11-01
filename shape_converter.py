@@ -290,6 +290,7 @@ def main(dirpath:str, input_type:str, geom_type:str, simplify_tolerance:float, d
             df = _load_shp_or_kml(filepath)
 
         df = df[df.geom_type == geom_type]
+        df = df.to_crs(geometries_df.crs)
         if len(df) > 0:
             geometries_df = pd.concat([geometries_df, df])
 
