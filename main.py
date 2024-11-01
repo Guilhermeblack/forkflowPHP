@@ -183,6 +183,7 @@ def main(dirpath:str, data_type:str, filename:str, output_dir:str, time):
             df = df.explode(ignore_index=True)
         except:
             df = read_as_dict(filepath)
+        df = df.to_crs(polygons.crs)
         polygons = pd.concat([polygons, df])
 
     logging.debug("Finished files processing.")
