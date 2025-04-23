@@ -1,5 +1,5 @@
 {
-    "name": "traceflow-php",
+    "name": "traceflowphp",
     "description": "A PHP library for interacting with the TraceFlow API",
     "type": "library",
     "authors": [
