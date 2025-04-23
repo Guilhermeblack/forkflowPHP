@@ -1,5 +1,5 @@
 {
-    "name": "traceflowphp",
+    "name": "bemagro/traceflowphp",
     "description": "A PHP library for interacting with the TraceFlow API",
     "type": "library",
     "authors": [
