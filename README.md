@@ -1,6 +1,5 @@
- Gryphon Logging Service
 
-Serviço dedicado para registro de logs no ecossistema Gryphon, facilitando o monitoramento de eventos, operações e erros de forma estruturada.
+Serviço dedicado para registro de logs no ecossistema, facilitando o monitoramento de eventos, operações e erros de forma estruturada.
 
 🚀 Funcionalidade Principal
 Este módulo está focado exclusivamente em:
@@ -15,7 +14,7 @@ Consulta por múltiplos filtros: tipo, origem, usuário, timestamp etc.
 graphql
 Copiar
 Editar
-gryphon-logger/
+-logger/
 │
 ├── app/
 │   ├── main.py           # Ponto de entrada FastAPI
